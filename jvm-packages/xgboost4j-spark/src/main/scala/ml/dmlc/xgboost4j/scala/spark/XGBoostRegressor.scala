@@ -16,12 +16,14 @@
 
 package ml.dmlc.xgboost4j.scala.spark
 
+import scala.collection.Iterator
 import scala.collection.JavaConverters._
 
 import ml.dmlc.xgboost4j.java.Rabit
 import ml.dmlc.xgboost4j.{LabeledPoint => XGBLabeledPoint}
 import ml.dmlc.xgboost4j.scala.spark.params.{DefaultXGBoostParamsReader, _}
 import ml.dmlc.xgboost4j.scala.{Booster, DMatrix, XGBoost => SXGBoost}
+import ml.dmlc.xgboost4j.scala.{EvalTrait, ObjectiveTrait}
 
 import org.apache.hadoop.fs.Path
 import org.apache.spark.TaskContext
@@ -84,9 +86,6 @@ class XGBoostRegressor (
 
   def setSeed(value: Long): this.type = set(seed, value)
 
-  // setters for booster params
-  def setBooster(value: String): this.type = set(booster, value)
-
   def setEta(value: Double): this.type = set(eta, value)
 
   def setGamma(value: Double): this.type = set(gamma, value)
@@ -137,6 +136,10 @@ class XGBoostRegressor (
   def setTrainTestRatio(value: Double): this.type = set(trainTestRatio, value)
 
   def setNumEarlyStoppingRounds(value: Int): this.type = set(numEarlyStoppingRounds, value)
+
+  def setCustomObj(value: ObjectiveTrait): this.type = set(customObj, value)
+
+  def setCustomEval(value: EvalTrait): this.type = set(customEval, value)
 
   // called at the start of fit/train when 'eval_metric' is not defined
   private def setupDefaultEvalMetric(): String = {
@@ -228,8 +231,14 @@ class XGBoostRegressionModel private[ml] (
     this
   }
 
+  /**
+   * Single instance prediction.
+   * Note: The performance is not ideal, use it carefully!
+   */
   override def predict(features: Vector): Double = {
-    throw new Exception("XGBoost-Spark does not support online prediction")
+    import DataUtils._
+    val dm = new DMatrix(XGBoost.removeMissingValues(Iterator(features.asXGB), $(missing)))
+    _booster.predict(data = dm)(0)(0)
   }
 
   private def transformInternal(dataset: Dataset[_]): DataFrame = {
@@ -241,12 +250,12 @@ class XGBoostRegressionModel private[ml] (
     val bBooster = dataset.sparkSession.sparkContext.broadcast(_booster)
     val appName = dataset.sparkSession.sparkContext.appName
 
-    val rdd = dataset.rdd.mapPartitions { rowIterator =>
+    val rdd = dataset.asInstanceOf[Dataset[Row]].rdd.mapPartitions { rowIterator =>
       if (rowIterator.hasNext) {
         val rabitEnv = Array("DMLC_TASK_ID" -> TaskContext.getPartitionId().toString).toMap
         Rabit.init(rabitEnv.asJava)
         val (rowItr1, rowItr2) = rowIterator.duplicate
-        val featuresIterator = rowItr2.map(row => row.asInstanceOf[Row].getAs[Vector](
+        val featuresIterator = rowItr2.map(row => row.getAs[Vector](
           $(featuresCol))).toList.iterator
         import DataUtils._
         val cacheInfo = {
@@ -257,7 +266,9 @@ class XGBoostRegressionModel private[ml] (
           }
         }
 
-        val dm = new DMatrix(featuresIterator.map(_.asXGB), cacheInfo)
+        val dm = new DMatrix(
+          XGBoost.removeMissingValues(featuresIterator.map(_.asXGB), $(missing)),
+          cacheInfo)
         try {
           val originalPredictionItr = {
             bBooster.value.predict(dm).map(Row(_)).iterator

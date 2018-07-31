@@ -16,11 +16,13 @@
 
 package ml.dmlc.xgboost4j.scala.spark
 
+import scala.collection.Iterator
 import scala.collection.JavaConverters._
 import scala.collection.mutable
 
 import ml.dmlc.xgboost4j.java.Rabit
 import ml.dmlc.xgboost4j.scala.{Booster, DMatrix, XGBoost => SXGBoost}
+import ml.dmlc.xgboost4j.scala.{EvalTrait, ObjectiveTrait}
 import ml.dmlc.xgboost4j.scala.spark.params._
 import ml.dmlc.xgboost4j.{LabeledPoint => XGBLabeledPoint}
 
@@ -82,9 +84,6 @@ class XGBoostClassifier (
 
   def setSeed(value: Long): this.type = set(seed, value)
 
-  // setters for booster params
-  def setBooster(value: String): this.type = set(booster, value)
-
   def setEta(value: Double): this.type = set(eta, value)
 
   def setGamma(value: Double): this.type = set(gamma, value)
@@ -135,6 +134,10 @@ class XGBoostClassifier (
   def setTrainTestRatio(value: Double): this.type = set(trainTestRatio, value)
 
   def setNumEarlyStoppingRounds(value: Int): this.type = set(numEarlyStoppingRounds, value)
+
+  def setCustomObj(value: ObjectiveTrait): this.type = set(customObj, value)
+
+  def setCustomEval(value: EvalTrait): this.type = set(customEval, value)
 
   // called at the start of fit/train when 'eval_metric' is not defined
   private def setupDefaultEvalMetric(): String = {
@@ -232,30 +235,28 @@ class XGBoostClassificationModel private[ml](
     this
   }
 
-  // TODO: Make it public after we resolve performance issue
-  private def margin(features: Vector): Array[Float] = {
-    import DataUtils._
-    val dm = new DMatrix(scala.collection.Iterator(features.asXGB))
-    _booster.predict(data = dm, outPutMargin = true)(0)
-  }
-
-  private def probability(features: Vector): Array[Float] = {
-    import DataUtils._
-    val dm = new DMatrix(scala.collection.Iterator(features.asXGB))
-    _booster.predict(data = dm, outPutMargin = false)(0)
-  }
-
+  /**
+   * Single instance prediction.
+   * Note: The performance is not ideal, use it carefully!
+   */
   override def predict(features: Vector): Double = {
-    throw new Exception("XGBoost-Spark does not support online prediction")
+    import DataUtils._
+    val dm = new DMatrix(XGBoost.removeMissingValues(Iterator(features.asXGB), $(missing)))
+    val probability = _booster.predict(data = dm)(0)
+    if (numClasses == 2) {
+      math.round(probability(0))
+    } else {
+      Vectors.dense(probability.map(_.toDouble)).argmax
+    }
   }
 
   // Actually we don't use this function at all, to make it pass compiler check.
-  override def predictRaw(features: Vector): Vector = {
+  override protected def predictRaw(features: Vector): Vector = {
     throw new Exception("XGBoost-Spark does not support \'predictRaw\'")
   }
 
   // Actually we don't use this function at all, to make it pass compiler check.
-  override def raw2probabilityInPlace(rawPrediction: Vector): Vector = {
+  override protected def raw2probabilityInPlace(rawPrediction: Vector): Vector = {
     throw new Exception("XGBoost-Spark does not support \'raw2probabilityInPlace\'")
   }
 
@@ -271,12 +272,12 @@ class XGBoostClassificationModel private[ml](
     val bBooster = dataset.sparkSession.sparkContext.broadcast(_booster)
     val appName = dataset.sparkSession.sparkContext.appName
 
-    val rdd = dataset.rdd.mapPartitions { rowIterator =>
+    val rdd = dataset.asInstanceOf[Dataset[Row]].rdd.mapPartitions { rowIterator =>
       if (rowIterator.hasNext) {
         val rabitEnv = Array("DMLC_TASK_ID" -> TaskContext.getPartitionId().toString).toMap
         Rabit.init(rabitEnv.asJava)
         val (rowItr1, rowItr2) = rowIterator.duplicate
-        val featuresIterator = rowItr2.map(row => row.asInstanceOf[Row].getAs[Vector](
+        val featuresIterator = rowItr2.map(row => row.getAs[Vector](
           $(featuresCol))).toList.iterator
         import DataUtils._
         val cacheInfo = {
@@ -287,7 +288,9 @@ class XGBoostClassificationModel private[ml](
           }
         }
 
-        val dm = new DMatrix(featuresIterator.map(_.asXGB), cacheInfo)
+        val dm = new DMatrix(
+          XGBoost.removeMissingValues(featuresIterator.map(_.asXGB), $(missing)),
+          cacheInfo)
         try {
           val rawPredictionItr = {
             bBooster.value.predict(dm, outPutMargin = true).map(Row(_)).iterator
