@@ -16,6 +16,8 @@
 #include <stdint.h>
 #endif
 
+#include <gdf/gdf.h>
+
 // XGBoost C API will include APIs in Rabit C API
 #include <rabit/c_api.h>
 
@@ -104,6 +106,16 @@ XGB_DLL const char *XGBGetLastError(void);
  * \return 0 for success, -1 for failure
  */
 XGB_DLL int XGBRegisterLogCallback(void (*callback)(const char*));
+
+/*!
+ * \bried create a data matrix from a GPU data frame (GDF)
+ * \param cols array of GDF columns
+ * \param n_cols number of GDF columns
+ * \param[out] out handle for the DMatrix built
+ * \return 0 when success, -1 when failure happens
+ */
+XGB_DLL int XGDMatrixCreateFromGDF
+(gdf_column **cols, size_t n_cols, DMatrixHandle *out);
 
 /*!
  * \brief load a data matrix
