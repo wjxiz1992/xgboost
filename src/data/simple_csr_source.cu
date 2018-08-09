@@ -225,15 +225,14 @@ void SimpleCSRSource::InitFromGDF(gdf_column** cols, size_t n_cols) {
     n_entries += cols[i]->size - cols[i]->null_count;
   }
   info.num_nonzero_ = n_entries;
-  // TODO(canonizer): provide distributions for the multi-GPU case
   // TODO(canonizer): use the same devices as by the rest of xgboost
   GPUSet devices = GPUSet::Range(0, 1);
   page_.offset.Reshard(GPUDistribution::Overlap(devices, 1));
-  page_.data.Reshard(devices);
+  // TODO(canonizer): use the real row offsets for the multi-GPU case
+  std::vector<size_t> device_offsets{0, n_entries};
+  page_.data.Reshard(GPUDistribution::Explicit(devices, device_offsets));
   page_.offset.Resize(n_rows + 1);
   page_.data.Resize(n_entries);
-  std::cerr << "n_cols = " << n_cols << ", n_rows = " << n_rows << ", n_entries = "
-            << n_entries << std::endl;
   csr_gdf csr;
   csr.data = page_.data.DevicePointer(0);
   csr.offsets = page_.offset.DevicePointer(0);
@@ -242,7 +241,6 @@ void SimpleCSRSource::InitFromGDF(gdf_column** cols, size_t n_cols) {
   csr.n_cols = n_cols;
   gdf_error status = gdf_to_csr(cols, n_cols, &csr);
   CHECK_EQ(status, gdf_error::GDF_SUCCESS);
-  std::cerr << "successfully constructed SparsePage from GDF columns" << std::endl;
 }
 
 }  // namespace data

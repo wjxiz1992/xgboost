@@ -16,12 +16,8 @@ def get_gdf():
     m = 20
     sparsity = 0.25
     X, y = datasets.make_regression(n, m, random_state=rng)
-    #X = np.array([[np.nan if rng.uniform(0, 1) < sparsity else x
-    #               for x in x_row] for x_row in X])
     X = np.ascontiguousarray(np.transpose(X))
     df = gdf.DataFrame(list(zip(['col%d' % i for i in range(m)], X)))
-    print('n_columns =', len(df.columns))
-    print('n_rows =', len(df))
     return df, y
     
 
@@ -39,6 +35,3 @@ class TestGPU(unittest.TestCase):
                                     select_datasets=self.gdf_datasets)
             print(gpu_results)
             assert_results_non_increasing(gpu_results, 1e-2)
-            #param['tree_method'] = 'hist'
-            #cpu_results = run_suite(param, select_datasets=self.gdf_datasets)
-            #assert_gpu_results(cpu_results, gpu_results)

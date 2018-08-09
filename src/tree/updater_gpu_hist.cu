@@ -390,7 +390,7 @@ struct DeviceShard {
     n_bins = hmat.row_ptr.back();
     null_gidx_value = hmat.row_ptr.back();
 
-    const auto& data_vec = row_batch.data.HostVector();
+    //const auto& data_vec = row_batch.data.HostVector();
 
     // copy cuts to the GPU
     dh::safe_cuda(cudaSetDevice(device_idx));
@@ -433,9 +433,11 @@ struct DeviceShard {
       size_t batch_entry_begin = batch_segments[gpu_batch];
       size_t batch_entry_end = batch_segments[gpu_batch + 1];
       size_t n_entries = batch_entry_end - batch_entry_begin;
-      dh::safe_cuda(cudaMemcpy
-                    (entries_d.data().get(), &data_vec[batch_entry_begin],
-                     n_entries * sizeof(Entry), cudaMemcpyDefault));
+      row_batch.data.CopyTo(device_idx, batch_entry_begin, entries_d.data().get(),
+                            n_entries);
+      // dh::safe_cuda(cudaMemcpy
+      //               (entries_d.data().get(), &data_vec[batch_entry_begin],
+      //                n_entries * sizeof(Entry), cudaMemcpyDefault));
       dim3 block3(32, 8, 1);
       dim3 grid3(dh::DivRoundUp(n_rows, block3.x),
                  dh::DivRoundUp(row_stride, block3.y), 1);

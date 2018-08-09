@@ -238,6 +238,11 @@ class HostDeviceVector {
   void Copy(const std::vector<T>& other);
   void Copy(std::initializer_list<T> other);
 
+  // copies data from the host if not present on the GPU;
+  // otherwise, syncs to the device and copies the data from there;
+  // useful when there may be not enough memory to copy all of the data to the GPU
+  void CopyTo(int device, size_t offset, T* dst, size_t n) const;
+
   std::vector<T>& HostVector();
   const std::vector<T>& HostVector() const;
   void Reshard(const GPUDistribution& distribution) const;

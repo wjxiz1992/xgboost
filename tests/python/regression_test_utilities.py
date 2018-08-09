@@ -138,7 +138,6 @@ def run_suite(param, num_rounds=10, select_datasets=None, scale_features=False):
     ]
 
     if select_datasets is not None and isinstance(select_datasets[0], Dataset):
-        print('select_datasets provides datasets')
         datasets = select_datasets
         select_datasets = None
         

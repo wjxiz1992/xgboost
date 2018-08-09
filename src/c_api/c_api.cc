@@ -242,7 +242,6 @@ int XGDMatrixCreateFromDataIter(
 int XGDMatrixCreateFromGDF
 (gdf_column **cols, size_t n_cols, DMatrixHandle *out) {
   API_BEGIN();
-  std::cerr << "called XGDMatrixCreateFromGDF" << std::endl;
   std::unique_ptr<data::SimpleCSRSource> source(new data::SimpleCSRSource());
 
   source->InitFromGDF(cols, n_cols);

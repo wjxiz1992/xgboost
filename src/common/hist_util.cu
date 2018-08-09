@@ -277,8 +277,9 @@ struct GPUSketcher {
     }
 
     void SketchBatch(const SparsePage& row_batch, const MetaInfo& info,
-                     const thrust::host_vector<size_t>& batch_segments, size_t gpu_batch) {
-      const auto& data_vec = row_batch.data.HostVector();
+                     const thrust::host_vector<size_t>& batch_segments,
+                     size_t gpu_batch) {
+      //const auto& data_vec = row_batch.data.HostVector();
       
       // compute start and end indices
       size_t batch_row_begin = gpu_batch * gpu_batch_nrows_;
@@ -289,9 +290,11 @@ struct GPUSketcher {
       size_t batch_nrows = batch_row_end - batch_row_begin;
       size_t n_entries = batch_entry_end - batch_entry_begin;
       // copy the batch to the GPU
-      dh::safe_cuda
-        (cudaMemcpy(entries_.data().get(), &data_vec[batch_entry_begin],
-                    n_entries * sizeof(Entry), cudaMemcpyDefault));
+      // dh::safe_cuda
+      //   (cudaMemcpy(entries_.data().get(), &data_vec[batch_entry_begin],
+      //               n_entries * sizeof(Entry), cudaMemcpyDefault));
+      row_batch.data.CopyTo(device_, batch_entry_begin, entries_.data().get(),
+                            n_entries);
       // copy the weights if necessary
       if (has_weights_) {
         dh::safe_cuda(cudaMemcpy
