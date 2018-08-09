@@ -294,11 +294,10 @@ struct GPUSketcher {
                     n_entries * sizeof(Entry), cudaMemcpyDefault));
       // copy the weights if necessary
       if (has_weights_) {
-        const auto& weights_vec = info.weights_.HostVector();
-        dh::safe_cuda
-          (cudaMemcpy(weights_.data().get(),
-                      weights_vec.data() + row_begin_ + batch_row_begin,
-                      batch_nrows * sizeof(bst_float), cudaMemcpyDefault));
+        dh::safe_cuda(cudaMemcpy
+                      (weights_.data().get(),
+                       info.weights_.DevicePointer(device_) + batch_row_begin,
+                       batch_nrows * sizeof(bst_float), cudaMemcpyDefault));
       }
 
       // unpack the features; also unpack weights if present
@@ -350,7 +349,8 @@ struct GPUSketcher {
     std::vector<size_t> row_segments;
     dh::RowSegments(info.num_row_, devices_.Size(), &row_segments);
 
-    // ensure that the row batch is distributed properly
+    // ensure that the data is distributed properly
+    info.weights_.Reshard(devices_);
     batch.offset.Reshard(GPUDistribution::Overlap(devices_, 1));
 
     // create device shards
