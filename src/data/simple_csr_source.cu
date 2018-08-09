@@ -228,7 +228,7 @@ void SimpleCSRSource::InitFromGDF(gdf_column** cols, size_t n_cols) {
   // TODO(canonizer): provide distributions for the multi-GPU case
   // TODO(canonizer): use the same devices as by the rest of xgboost
   GPUSet devices = GPUSet::Range(0, 1);
-  page_.offset.Reshard(devices);
+  page_.offset.Reshard(GPUDistribution::Overlap(devices, 1));
   page_.data.Reshard(devices);
   page_.offset.Resize(n_rows + 1);
   page_.data.Resize(n_entries);

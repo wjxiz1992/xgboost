@@ -240,7 +240,7 @@ class HostDeviceVector {
 
   std::vector<T>& HostVector();
   const std::vector<T>& HostVector() const;
-  void Reshard(const GPUDistribution& distribution);
+  void Reshard(const GPUDistribution& distribution) const;
   void Reshard(GPUSet devices) const;
   void Resize(size_t new_size, T v = T());
 

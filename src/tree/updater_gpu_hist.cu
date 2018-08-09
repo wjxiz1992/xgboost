@@ -337,7 +337,6 @@ struct DeviceShard {
   dh::DVec<bst_float> prediction_cache;
   std::vector<GradientPair> node_sum_gradients;
   dh::DVec<GradientPair> node_sum_gradients_d;
-  thrust::device_vector<size_t> row_ptrs;
   common::CompressedIterator<uint32_t> gidx;
   size_t row_stride;
   bst_uint row_begin_idx;  // The row offset for this shard
@@ -373,14 +372,8 @@ struct DeviceShard {
 
   void InitRowPtrs(const SparsePage& row_batch) {
     dh::safe_cuda(cudaSetDevice(device_idx));
-    const auto& offset_vec = row_batch.offset.HostVector();
-
     // find the maximum row size
-    row_ptrs.resize(n_rows + 1);
-    thrust::copy(offset_vec.data() + row_begin_idx,
-                 offset_vec.data() + row_end_idx + 1,
-                 row_ptrs.begin());
-    auto row_iter = row_ptrs.begin();
+    auto row_iter = row_batch.offset.tbegin(device_idx);
     auto get_size = [=] __device__(size_t row) {
       return row_iter[row + 1] - row_iter[row];
     }; // NOLINT
@@ -397,7 +390,6 @@ struct DeviceShard {
     n_bins = hmat.row_ptr.back();
     null_gidx_value = hmat.row_ptr.back();
 
-    const auto& offset_vec = row_batch.offset.HostVector();
     const auto& data_vec = row_batch.data.HostVector();
 
     // copy cuts to the GPU
@@ -427,6 +419,10 @@ struct DeviceShard {
     thrust::device_vector<Entry> entries_d(gpu_batch_nrows * row_stride);
 
     size_t gpu_nbatches = dh::DivRoundUp(n_rows, gpu_batch_nrows);
+    thrust::host_vector<size_t> batch_segments;
+    dh::BatchEntrySegments
+      (device_idx, row_batch.offset.DevicePointer(device_idx), n_rows,
+       gpu_batch_nrows, &batch_segments);
     for (size_t gpu_batch = 0; gpu_batch < gpu_nbatches; ++gpu_batch) {
       size_t batch_row_begin = gpu_batch * gpu_batch_nrows;
       size_t batch_row_end = (gpu_batch + 1) * gpu_batch_nrows;
@@ -434,32 +430,26 @@ struct DeviceShard {
         batch_row_end = n_rows;
       }
       size_t batch_nrows = batch_row_end - batch_row_begin;
-      size_t n_entries =
-        offset_vec[row_begin_idx + batch_row_end] -
-        offset_vec[row_begin_idx + batch_row_begin];
-      dh::safe_cuda
-        (cudaMemcpy
-         (entries_d.data().get(),
-          &data_vec[offset_vec[row_begin_idx + batch_row_begin]],
-          n_entries * sizeof(Entry), cudaMemcpyDefault));
+      size_t batch_entry_begin = batch_segments[gpu_batch];
+      size_t batch_entry_end = batch_segments[gpu_batch + 1];
+      size_t n_entries = batch_entry_end - batch_entry_begin;
+      dh::safe_cuda(cudaMemcpy
+                    (entries_d.data().get(), &data_vec[batch_entry_begin],
+                     n_entries * sizeof(Entry), cudaMemcpyDefault));
       dim3 block3(32, 8, 1);
       dim3 grid3(dh::DivRoundUp(n_rows, block3.x),
                  dh::DivRoundUp(row_stride, block3.y), 1);
       compress_bin_ellpack_k<<<grid3, block3>>>
         (common::CompressedBufferWriter(num_symbols), gidx_buffer.Data(),
-         row_ptrs.data().get() + batch_row_begin,
+         row_batch.offset.DevicePointer(device_idx) + batch_row_begin,
          entries_d.data().get(), cuts_d.data().get(), cut_row_ptrs_d.data().get(),
-         batch_row_begin, batch_nrows,
-         offset_vec[row_begin_idx + batch_row_begin],
-         row_stride, null_gidx_value);
+         batch_row_begin, batch_nrows, batch_entry_begin, row_stride, null_gidx_value);
 
       dh::safe_cuda(cudaGetLastError());
       dh::safe_cuda(cudaDeviceSynchronize());
     }
 
     // free the memory that is no longer needed
-    row_ptrs.resize(0);
-    row_ptrs.shrink_to_fit();
     entries_d.resize(0);
     entries_d.shrink_to_fit();
 
@@ -789,6 +779,10 @@ class GPUHistMaker : public TreeUpdater {
     iter->BeforeFirst();
     CHECK(iter->Next()) << "Empty batches are not supported";
     const SparsePage& batch = iter->Value();
+
+    // Ensure proper data distribution
+    batch.offset.Reshard(GPUDistribution::Overlap(devices_, 1));
+    
     // Create device shards
     shards_.resize(n_devices);
     dh::ExecuteIndexShards(&shards_, [&](int i, std::unique_ptr<DeviceShard>& shard) {

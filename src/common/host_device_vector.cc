@@ -116,7 +116,7 @@ void HostDeviceVector<T>::Copy(std::initializer_list<T> other) {
 }
 
 template <typename T>
-void Reshard(const GPUDistribution& distribution) { }
+void Reshard(const GPUDistribution& distribution) const { }
 
 template <typename T>
 void HostDeviceVector<T>::Reshard(GPUSet devices) const { }
