@@ -13,6 +13,7 @@
 #include "../common/host_device_vector.h"
 #include "../common/device_helpers.cuh"
 
+#include "./gdf.cuh"
 #include "./simple_csr_source.h"
 
 #undef CUDA_TRY
@@ -30,7 +31,6 @@ struct csr_gdf {
   size_t n_cols;
 };
 
-//--- all the private functions
 gdf_error run_converter(gdf_column** gdf_data, csr_gdf* csr);
 
 //--- private CUDA functions / kernels
@@ -40,8 +40,6 @@ __global__ void cuda_create_csr_k
 
 __global__ void determine_valid_rec_count_k
 (gdf_valid_type* valid, size_t n_rows, size_t n_cols, size_t* offset);
-
-__device__ float convert_data_element(gdf_column* gdf, int idx, gdf_dtype dtype);
 
 __device__ int which_bitmap(int record) { return record / 8; }
 __device__ int which_bit(int bit) { return bit % 8; }
@@ -57,39 +55,6 @@ __device__ bool is_valid(gdf_valid_type* valid, int tid) {
   int bit_idx = which_bit(tid);
   gdf_valid_type bitmap = valid[bitmap_idx];
   return check_bit(bitmap, bit_idx);
-}
-
-/**
- * Convert the data element into a common format
- */
-__device__ float convert_data_element(void* data, int tid, gdf_dtype dtype) {
-  switch(dtype) {
-    case gdf_dtype::GDF_INT8: {
-      int8_t* a = (int8_t*)data;
-      return float(a[tid]);
-    }
-    case gdf_dtype::GDF_INT16: {
-      int16_t* a = (int16_t*)data;
-      return float(a[tid]);
-    }
-    case gdf_dtype::GDF_INT32: {
-      int32_t* a = (int32_t*)data;
-      return float(a[tid]);
-    }
-    case gdf_dtype::GDF_INT64: {
-      int64_t* a = (int64_t*)data;
-      return float(a[tid]);
-    }
-    case gdf_dtype::GDF_FLOAT32: {
-      float *a = (float *)data;
-      return float(a[tid]);
-    }
-    case gdf_dtype::GDF_FLOAT64: {
-      double *a = (double *)data;
-      return float(a[tid]);
-    }
-  }
-  return nanf(nullptr);
 }
 
 //
@@ -215,7 +180,7 @@ __global__ void determine_valid_rec_count_k
 }
 
 void SimpleCSRSource::InitFromGDF(gdf_column** cols, size_t n_cols) {
-  std::cerr << "called SimpleCSRSource::InitFromGDF" << std::endl;
+  CHECK_GT(n_cols, 0);
   size_t n_rows = cols[0]->size;
   info.num_col_ = n_cols;
   info.num_row_ = n_rows;

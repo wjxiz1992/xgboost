@@ -16,10 +16,14 @@ def get_gdf():
     m = 20
     sparsity = 0.25
     X, y = datasets.make_regression(n, m, random_state=rng)
-    X = np.ascontiguousarray(np.transpose(X))
-    df = gdf.DataFrame(list(zip(['col%d' % i for i in range(m)], X)))
-    return df, y
-    
+    Xy = (np.ascontiguousarray
+    (np.transpose(np.concatenate((X, np.expand_dims(y, axis=1)), axis=1))))
+    df = gdf.DataFrame(list(zip(['col%d' % i for i in range(m+1)], Xy)))
+    all_columns = list(df.columns)
+    cols_X = all_columns[0:len(all_columns)-1]
+    cols_y = [all_columns[len(all_columns)-1]]
+    return df[cols_X], df[cols_y]
+
 
 class TestGPU(unittest.TestCase):
 

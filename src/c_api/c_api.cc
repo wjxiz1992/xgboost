@@ -760,6 +760,17 @@ XGB_DLL int XGDMatrixSetFloatInfo(DMatrixHandle handle,
   API_END();
 }
 
+XGB_DLL int XGDMatrixSetInfoGDF(DMatrixHandle handle,
+                                const char *field,
+                                gdf_column **cols,
+                                size_t n_cols) {
+  API_BEGIN();
+  CHECK_HANDLE();
+  static_cast<std::shared_ptr<DMatrix>*>(handle)
+    ->get()->Info().SetInfoGDF(field, cols, n_cols);
+  API_END();
+}
+
 XGB_DLL int XGDMatrixSetUIntInfo(DMatrixHandle handle,
                          const char* field,
                          const unsigned* info,

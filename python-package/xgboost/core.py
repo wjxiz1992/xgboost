@@ -378,11 +378,19 @@ class DMatrix(object):
         if label is not None:
             if isinstance(label, np.ndarray):
                 self.set_label_npy2d(label)
+            elif isinstance(label, gdf.Column):
+                self.set_info_gdf('label', label)
+            elif isinstance(label, gdf.DataFrame):
+                self.set_info_gdf('label', label)
             else:
                 self.set_label(label)
         if weight is not None:
             if isinstance(weight, np.ndarray):
                 self.set_weight_npy2d(weight)
+            elif isinstance(weight, gdf.Column):
+                self.set_info_gdf('weight', weight)
+            elif isinstance(weight, gdf.DataFrame):
+                self.set_info_gdf('weight', weight)
             else:
                 self.set_weight(weight)
 
@@ -576,6 +584,19 @@ class DMatrix(object):
                                                c_str(field),
                                                c_data,
                                                c_bst_ulong(len(data))))
+
+    def set_info_gdf(self, field, data):
+        col_ptrs = []
+        if isinstance(data, gdf.DataFrame):
+            col_ptrs = [data[col]._column.cffi_view for col in data.columns]
+        else:
+            # data is a single GDF column
+            col_ptrs = [data.cffi_view]
+        col_ptr_arr = ffi.new('gdf_column*[]', col_ptrs)
+        _check_call(_LIB.XGDMatrixSetInfoGDF
+                    (self.handle, c_str(field),
+                     ctypes.c_void_p(int(ffi.cast('uintptr_t', col_ptr_arr))),
+                     ctypes.c_size_t(len(col_ptrs))))
 
     def set_uint_info(self, field, data):
         """Set uint type property into the DMatrix.

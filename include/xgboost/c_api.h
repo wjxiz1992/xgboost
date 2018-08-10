@@ -30,7 +30,6 @@
 // manually define unsigned long
 typedef uint64_t bst_ulong;  // NOLINT(*)
 
-
 /*! \brief handle to DMatrix */
 typedef void *DMatrixHandle;  // NOLINT(*)
 /*! \brief handle to Booster */
@@ -294,6 +293,20 @@ XGB_DLL int XGDMatrixSetFloatInfo(DMatrixHandle handle,
                                   const char *field,
                                   const float *array,
                                   bst_ulong len);
+/*!
+ * \brief set a vector to 
+ * \param handle a instance of data matrix
+ * \param field field name, can be label, weight
+ * \param array pointer to float vector
+ * \param len length of array
+ * \return 0 when success, -1 when failure happens
+ */
+
+XGB_DLL int XGDMatrixSetInfoGDF(DMatrixHandle handle,
+                                const char *field,
+                                gdf_column** gdf,
+                                size_t n_cols);
+
 /*!
  * \brief set uint32 vector to a content in info
  * \param handle a instance of data matrix
