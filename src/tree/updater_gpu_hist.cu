@@ -18,6 +18,7 @@
 #include "../common/device_helpers.cuh"
 #include "../common/hist_util.h"
 #include "../common/host_device_vector.h"
+#include "../common/sync.h"
 #include "../common/timer.h"
 #include "param.h"
 #include "updater_gpu_common.cuh"
@@ -792,7 +793,7 @@ class GPUHistMaker : public TreeUpdater {
       device_list_[d_idx] = device_idx;
     }
 
-    reducer_.Init(device_list_);
+    reducer_.Init(device_list_, param_.distributed_dask);
 
     // Partition input matrix into row segments
     std::vector<size_t> row_segments;
@@ -1088,6 +1089,11 @@ class GPUHistMaker : public TreeUpdater {
     auto num_leaves = 1;
 
     while (!qexpand_->empty()) {
+      // // primitive way to synchronize across the workers
+      // if (param_.distributed_dask) {
+      //   int tmp = 0;
+      //   rabit::Broadcast((void*)&tmp, (size_t)sizeof(int), 0);
+      // }
       auto candidate = qexpand_->top();
       qexpand_->pop();
       if (!candidate.IsValid(param_, num_leaves)) continue;

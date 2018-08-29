@@ -22,6 +22,7 @@
 
 #ifdef XGBOOST_USE_NCCL
 #include "nccl.h"
+#include "../common/io.h"
 #endif
 
 // Uncomment to enable
@@ -840,9 +841,11 @@ class AllReducer {
   std::vector<ncclComm_t> comms;
   std::vector<cudaStream_t> streams;
   std::vector<int> device_ordinals;
+  // use nccl one-process-per-gpu type initialization?
+  bool use_nccl_opg;
 #endif
  public:
-  AllReducer() : initialised(false) {}
+  AllReducer() : initialised(false), use_nccl_opg(false) {}
 
   /**
    * \fn  void Init(const std::vector<int> &device_ordinals)
@@ -851,15 +854,24 @@ class AllReducer {
    * group.
    *
    * \param device_ordinals The device ordinals.
+   * \param opg whether to use nccl one-process-per-gpu type initialization
    */
 
-  void Init(const std::vector<int> &device_ordinals) {
+  void Init(const std::vector<int> &device_ordinals, bool opg=false) {
 #ifdef XGBOOST_USE_NCCL
     this->device_ordinals = device_ordinals;
     comms.resize(device_ordinals.size());
-    dh::safe_nccl(ncclCommInitAll(comms.data(),
-                                  static_cast<int>(device_ordinals.size()),
-                                  device_ordinals.data()));
+    if (use_nccl_opg && device_ordinals.size() == 1) {
+      auto id = GetUniqueId();
+      dh::safe_nccl(ncclCommInitRank(&(comms[0]),
+                                     rabit::GetWorldSize(),
+                                     id,
+                                     rabit::GetRank()));
+    } else {
+      dh::safe_nccl(ncclCommInitAll(comms.data(),
+                                    static_cast<int>(device_ordinals.size()),
+                                    device_ordinals.data()));
+    }
     streams.resize(device_ordinals.size());
     for (size_t i = 0; i < device_ordinals.size(); i++) {
       safe_cuda(cudaSetDevice(device_ordinals[i]));
@@ -871,6 +883,7 @@ class AllReducer {
         << "XGBoost must be compiled with NCCL to use more than one GPU.";
 #endif
   }
+
   ~AllReducer() {
 #ifdef XGBOOST_USE_NCCL
     if (initialised) {
@@ -889,7 +902,9 @@ class AllReducer {
    */
   void GroupStart() {
 #ifdef XGBOOST_USE_NCCL
-    dh::safe_nccl(ncclGroupStart());
+    if (!use_nccl_opg) {
+      dh::safe_nccl(ncclGroupStart());
+    }
 #endif
   }
 
@@ -898,7 +913,9 @@ class AllReducer {
    */
   void GroupEnd() {
 #ifdef XGBOOST_USE_NCCL
-    dh::safe_nccl(ncclGroupEnd());
+    if (!use_nccl_opg) {
+      dh::safe_nccl(ncclGroupEnd());
+    }
 #endif
   }
 
@@ -944,6 +961,26 @@ class AllReducer {
     dh::safe_nccl(ncclAllReduce(sendbuff, recvbuff, count, ncclInt64, ncclSum,
                                 comms[communication_group_idx],
                                 streams[communication_group_idx]));
+#endif
+  }
+
+  /**
+   * \fn ncclUniqueId GetUniqueId()
+   *
+   * \brief Gets unique ID from nccl to be used to setup inter-process nccl
+   * communication.
+   *
+   * \return the unique id
+   */
+  ncclUniqueId GetUniqueId() {
+#ifdef XGBOOST_USE_NCCL
+    static const int RootRank = 0;
+    ncclUniqueId id;
+    if(rabit::GetRank() == RootRank) {
+      dh::safe_nccl(ncclGetUniqueId(&id));
+    }
+    rabit::Broadcast((void*)&id, (size_t)sizeof(ncclUniqueId), (int)RootRank);
+    return id;
 #endif
   }
 

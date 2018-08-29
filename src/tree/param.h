@@ -81,6 +81,8 @@ struct TrainParam : public dmlc::Parameter<TrainParam> {
   int gpu_batch_nrows;
   // the criteria to use for ranking splits
   std::string split_evaluator;
+  // whether to use nccl one-process-per-gpu type initialization
+  bool distributed_dask;
   // declare the parameters
   DMLC_DECLARE_PARAMETER(TrainParam) {
     DMLC_DECLARE_FIELD(learning_rate)
@@ -196,6 +198,11 @@ struct TrainParam : public dmlc::Parameter<TrainParam> {
     DMLC_DECLARE_FIELD(split_evaluator)
         .set_default("elastic_net,monotonic")
         .describe("The criteria to use for ranking splits");
+    DMLC_DECLARE_FIELD(distributed_dask)
+        .set_default(false)
+        .describe("EXP Param: Enable this when launching distributed gpu-xgboost "
+                  "through the dask scheduler. This assumes that rabit also has "
+                  "been initialized!");
     // add alias of parameters
     DMLC_DECLARE_ALIAS(reg_lambda, lambda);
     DMLC_DECLARE_ALIAS(reg_alpha, alpha);
