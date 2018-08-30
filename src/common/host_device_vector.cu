@@ -27,6 +27,19 @@ struct HostDeviceVectorImpl {
       on_d_ = !vec_->on_h_;
     }
 
+    void Init(HostDeviceVectorImpl<T>* vec, const DeviceShard& other) {
+      if (vec_ == nullptr) { vec_ = vec; }
+      CHECK_EQ(vec, vec_);
+      device_ = other.device_;
+      index_ = other.index_;
+      cached_size_ = other.cached_size_;
+      start_ = other.start_;
+      proper_size_ = other.proper_size_;
+      dh::safe_cuda(cudaSetDevice(device_));
+      data_.resize(other.data_.size());
+      on_d_ = other.on_d_;
+    }
+
     void ScatterFrom(const T* begin) {
       // TODO(canonizer): avoid full copy of host data
       LazySyncDevice();
@@ -69,7 +82,9 @@ struct HostDeviceVectorImpl {
 
     void LazySyncHost() {
       dh::safe_cuda(cudaSetDevice(device_));
-      thrust::copy_n(data_.begin(), proper_size_, vec_->data_h_.begin() + start_);
+      //thrust::copy_n(data_.begin(), proper_size_, vec_->data_h_.begin() + start_);
+      dh::safe_cuda(cudaMemcpy(vec_->data_h_.data(), data_.data().get(),
+                               proper_size_ * sizeof(T), cudaMemcpyDefault));
       on_d_ = false;
     }
 
@@ -135,6 +150,16 @@ struct HostDeviceVectorImpl {
     } else {
       data_h_ = init;
     }
+  }
+
+  HostDeviceVectorImpl(const HostDeviceVectorImpl<T>& other)
+    : data_h_(other.data_h_), on_h_(other.on_h_), size_d_(other.size_d_), 
+      distribution_(other.distribution_) {
+    std::cerr << "hdvec_impl copy constructor called" << std::endl;
+    shards_.resize(other.shards_.size());
+    dh::ExecuteIndexShards(&shards_, [&](int i, DeviceShard& shard) {
+        shard.Init(this, other.shards_[i]);
+      });
   }
 
   void InitShards() {
