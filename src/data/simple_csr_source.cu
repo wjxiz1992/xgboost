@@ -206,6 +206,7 @@ void SimpleCSRSource::InitFromGDF(gdf_column** cols, size_t n_cols) {
   csr.n_cols = n_cols;
   gdf_error status = gdf_to_csr(cols, n_cols, &csr);
   CHECK_EQ(status, gdf_error::GDF_SUCCESS);
+  //info.num_nonzero_ = csr.n_nz;
 }
 
 }  // namespace data
