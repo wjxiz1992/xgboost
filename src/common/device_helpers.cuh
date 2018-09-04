@@ -858,6 +858,7 @@ class AllReducer {
    */
 
   void Init(const std::vector<int> &device_ordinals, bool opg=false) {
+    use_nccl_opg = opg;
 #ifdef XGBOOST_USE_NCCL
     this->device_ordinals = device_ordinals;
     comms.resize(device_ordinals.size());
@@ -877,6 +878,11 @@ class AllReducer {
       safe_cuda(cudaSetDevice(device_ordinals[i]));
       safe_cuda(cudaStreamCreate(&streams[i]));
     }
+    int nccl_size, nccl_rank;
+    dh::safe_nccl(ncclCommCount(comms[0], &nccl_size));
+    dh::safe_nccl(ncclCommUserRank(comms[0], &nccl_rank));
+    std::cerr << "nccl size " << nccl_size << ", nccl rank " << nccl_rank <<
+      ", rabit size " << rabit::GetWorldSize() << ", rabit rank " << rabit::GetRank() << std::endl;
     initialised = true;
 #else
     CHECK_EQ(device_ordinals.size(), 1)

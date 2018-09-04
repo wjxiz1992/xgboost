@@ -860,6 +860,22 @@ class GPUHistMaker : public TreeUpdater {
     reducer_.GroupEnd();
 
     reducer_.Synchronize();
+
+    // print some of the histograms
+    const int n_bins = 10;
+    GradientPairSumT h_hist[n_bins];
+    for (int shard = 0; shard < shards_.size(); ++shard) {
+    auto d_node_hist2 = shards_[shard]->hist.GetHistPtr(nidx);
+      dh::safe_cuda(cudaMemcpy(h_hist, d_node_hist2, n_bins * sizeof(GradientPairSumT),
+                               cudaMemcpyDefault));
+      int rank = rabit::GetRank();
+      std::cerr << "rank " << rank << ", node " << nidx << ", shard " << shard <<
+        ": hist[0:" << n_bins << "] = { ";
+      for (int i = 0; i < n_bins; ++i) {
+        std::cerr << "{" << h_hist[i].GetGrad() << ", "<< h_hist[i].GetHess() << "} ";
+      }
+      std::cerr << "}" << std::endl;
+    }
   }
 
   void BuildHistLeftRight(int nidx_parent, int nidx_left, int nidx_right) {
