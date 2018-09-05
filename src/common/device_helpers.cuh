@@ -858,11 +858,13 @@ class AllReducer {
    */
 
   void Init(const std::vector<int> &device_ordinals, bool opg=false) {
-    use_nccl_opg = opg;
 #ifdef XGBOOST_USE_NCCL
+    this->use_nccl_opg = opg;
     this->device_ordinals = device_ordinals;
     comms.resize(device_ordinals.size());
-    if (use_nccl_opg && device_ordinals.size() == 1) {
+    if (use_nccl_opg) {
+      CHECK_EQ(device_ordinals.size(), 1)
+          << "NCCL-OPG version currently supports only 1 GPU in a process.";
       auto id = GetUniqueId();
       dh::safe_nccl(ncclCommInitRank(&(comms[0]),
                                      rabit::GetWorldSize(),
@@ -878,11 +880,6 @@ class AllReducer {
       safe_cuda(cudaSetDevice(device_ordinals[i]));
       safe_cuda(cudaStreamCreate(&streams[i]));
     }
-    int nccl_size, nccl_rank;
-    dh::safe_nccl(ncclCommCount(comms[0], &nccl_size));
-    dh::safe_nccl(ncclCommUserRank(comms[0], &nccl_rank));
-    std::cerr << "nccl size " << nccl_size << ", nccl rank " << nccl_rank <<
-      ", rabit size " << rabit::GetWorldSize() << ", rabit rank " << rabit::GetRank() << std::endl;
     initialised = true;
 #else
     CHECK_EQ(device_ordinals.size(), 1)
@@ -987,6 +984,20 @@ class AllReducer {
     }
     rabit::Broadcast((void*)&id, (size_t)sizeof(ncclUniqueId), (int)RootRank);
     return id;
+#endif
+  }
+
+  /**
+   * \fn  void SynchronizeInterProcess()
+   *
+   * \brief InterProcess Synchronization across the entire communication group.
+   */
+  void SynchronizeInterProcess() {
+#ifdef XGBOOST_USE_NCCL
+    if (use_nccl_opg) {
+      int rootRank = 0;
+      rabit::Broadcast((void*)&rootRank, (size_t)sizeof(int), 0);
+    }
 #endif
   }
 

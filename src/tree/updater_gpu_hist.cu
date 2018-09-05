@@ -22,6 +22,7 @@
 #include "../common/timer.h"
 #include "param.h"
 #include "updater_gpu_common.cuh"
+#include <unistd.h>
 
 namespace xgboost {
 namespace tree {
@@ -848,6 +849,8 @@ class GPUHistMaker : public TreeUpdater {
   }
 
   void AllReduceHist(int nidx) {
+    dh::safe_cuda(cudaDeviceSynchronize());
+    reducer_.SynchronizeInterProcess();
     reducer_.GroupStart();
     for (auto& shard : shards_) {
       auto d_node_hist = shard->hist.GetHistPtr(nidx);
@@ -858,24 +861,7 @@ class GPUHistMaker : public TreeUpdater {
           n_bins_ * (sizeof(GradientPairSumT) / sizeof(GradientPairSumT::ValueT)));
     }
     reducer_.GroupEnd();
-
     reducer_.Synchronize();
-
-    // print some of the histograms
-    const int n_bins = 10;
-    GradientPairSumT h_hist[n_bins];
-    for (int shard = 0; shard < shards_.size(); ++shard) {
-    auto d_node_hist2 = shards_[shard]->hist.GetHistPtr(nidx);
-      dh::safe_cuda(cudaMemcpy(h_hist, d_node_hist2, n_bins * sizeof(GradientPairSumT),
-                               cudaMemcpyDefault));
-      int rank = rabit::GetRank();
-      std::cerr << "rank " << rank << ", node " << nidx << ", shard " << shard <<
-        ": hist[0:" << n_bins << "] = { ";
-      for (int i = 0; i < n_bins; ++i) {
-        std::cerr << "{" << h_hist[i].GetGrad() << ", "<< h_hist[i].GetHess() << "} ";
-      }
-      std::cerr << "}" << std::endl;
-    }
   }
 
   void BuildHistLeftRight(int nidx_parent, int nidx_left, int nidx_right) {
@@ -992,6 +978,13 @@ class GPUHistMaker : public TreeUpdater {
         dh::SumReduction(shard->temp_memory, shard->gpair.Data(),
                          shard->gpair.Size());
       });
+    if (param_.distributed_dask) {
+      double g = tmp_sums[0].GetGrad();
+      double h = tmp_sums[0].GetHess();
+      rabit::Allreduce<rabit::op::Sum,double>(&g, 1);
+      rabit::Allreduce<rabit::op::Sum,double>(&h, 1);
+      tmp_sums[0] = GradientPair(g, h);
+    }
     auto sum_gradient =
         std::accumulate(tmp_sums.begin(), tmp_sums.end(), GradientPair());
 
@@ -1166,6 +1159,9 @@ class GPUHistMaker : public TreeUpdater {
                 uint64_t timestamp)
         : nid(nid), depth(depth), split(split), timestamp(timestamp) {}
     bool IsValid(const TrainParam& param, int num_leaves) const {
+        printf("rank:%d nid=%d depth=%d loss_chg=%lf kRtEps=%lf, left,right=%lf,%lf timestamp=%lu\n",
+               rabit::GetRank(), nid, depth, (double)split.loss_chg, (double)kRtEps,
+               (double)split.left_sum.GetHess(), (double)split.right_sum.GetHess(), timestamp);
       if (split.loss_chg <= kRtEps) return false;
       if (split.left_sum.GetHess() == 0 || split.right_sum.GetHess() == 0)
         return false;
