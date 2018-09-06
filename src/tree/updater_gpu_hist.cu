@@ -964,6 +964,21 @@ class GPUHistMaker : public TreeUpdater {
       best_splits[i] = nidx_best;
     }
     dh::safe_cuda(cudaFreeHost(candidate_splits));
+    for (size_t i = 0; i < best_splits.size(); ++i) {
+      if (param_.distributed_dask) {
+        auto& split = best_splits[i];
+        double g_left = split.left_sum.GetGrad();
+        double h_left = split.left_sum.GetHess();
+        double g_right = split.right_sum.GetGrad();
+        double h_right = split.right_sum.GetHess();
+        rabit::Allreduce<rabit::op::Sum,double>(&g_left, 1);
+        rabit::Allreduce<rabit::op::Sum,double>(&h_left, 1);
+        rabit::Allreduce<rabit::op::Sum,double>(&g_right, 1);
+        rabit::Allreduce<rabit::op::Sum,double>(&h_right, 1);
+        split.left_sum = GradientPair(g_left, h_left);
+        split.right_sum = GradientPair(g_right, h_right);
+      }
+    }
     return std::move(best_splits);
   }
 
@@ -1107,6 +1122,20 @@ class GPUHistMaker : public TreeUpdater {
       qexpand_->pop();
       if (!candidate.IsValid(param_, num_leaves)) continue;
       // std::cout << candidate;
+      // sync candidate's gradient sums
+      if (param_.distributed_dask) {
+        double g_left = candidate.split.left_sum.GetGrad();
+        double h_left = candidate.split.left_sum.GetHess();
+        double g_right = candidate.split.right_sum.GetGrad();
+        double h_right = candidate.split.right_sum.GetHess();
+        rabit::Allreduce<rabit::op::Sum,double>(&g_left, 1);
+        rabit::Allreduce<rabit::op::Sum,double>(&h_left, 1);
+        rabit::Allreduce<rabit::op::Sum,double>(&g_right, 1);
+        rabit::Allreduce<rabit::op::Sum,double>(&h_right, 1);
+        candidate.split.left_sum = GradientPair(g_left, h_left);
+        candidate.split.right_sum = GradientPair(g_right, h_right);
+      }
+      
       monitor_.Start("ApplySplit", devices_);
       this->ApplySplit(candidate, p_tree);
       monitor_.Stop("ApplySplit", devices_);
