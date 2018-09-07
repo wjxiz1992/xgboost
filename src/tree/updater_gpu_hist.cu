@@ -853,7 +853,7 @@ class GPUHistMaker : public TreeUpdater {
 
   void AllReduceHist(int nidx) {
     dh::safe_cuda(cudaDeviceSynchronize());
-    reducer_.SynchronizeInterProcess();
+    monitor_.Start("SyncHist", devices_);
     DBGPRINTF("rank:%d nidx=%d: AllReduceHist\n", rabit::GetRank(), nidx);
     reducer_.GroupStart();
     for (auto& shard : shards_) {
@@ -865,7 +865,7 @@ class GPUHistMaker : public TreeUpdater {
           n_bins_ * (sizeof(GradientPairSumT) / sizeof(GradientPairSumT::ValueT)));
     }
     reducer_.GroupEnd();
-    reducer_.Synchronize();
+    monitor_.Stop("SyncHist", devices_);
   }
 
   void BuildHistLeftRight(int nidx_parent, int nidx_left, int nidx_right) {
@@ -877,6 +877,7 @@ class GPUHistMaker : public TreeUpdater {
       right_node_max_elements = (std::max)(
           right_node_max_elements, shard->ridx_segments[nidx_right].Size());
     }
+    
     if (param_.distributed_dask) {
       rabit::Allreduce<rabit::op::Max,size_t>(&left_node_max_elements, 1);
       rabit::Allreduce<rabit::op::Max,size_t>(&right_node_max_elements, 1);
