@@ -83,7 +83,7 @@ struct HostDeviceVectorImpl {
     void LazySyncHost() {
       dh::safe_cuda(cudaSetDevice(device_));
       //thrust::copy_n(data_.begin(), proper_size_, vec_->data_h_.begin() + start_);
-      dh::safe_cuda(cudaMemcpy(vec_->data_h_.data(), data_.data().get(),
+      dh::safe_cuda(cudaMemcpy(vec_->data_h_.data() + start_, data_.data().get(),
                                proper_size_ * sizeof(T), cudaMemcpyDefault));
       on_d_ = false;
     }

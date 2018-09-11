@@ -30,6 +30,8 @@ TEST(gpu_hist_experimental, TestSparseShard) {
   iter->BeforeFirst();
   CHECK(iter->Next());
   const SparsePage& batch = iter->Value();
+  GPUSet devices = GPUSet::Range(0, 1);
+  batch.offset.Reshard(GPUDistribution::Overlap(devices, 1));
   DeviceShard shard(0, 0, 0, rows, p);
   shard.InitRowPtrs(batch);
   shard.InitCompressedData(hmat, batch);
@@ -72,7 +74,8 @@ TEST(gpu_hist_experimental, TestDenseShard) {
   iter->BeforeFirst();
   CHECK(iter->Next());
   const SparsePage& batch = iter->Value();
-
+  GPUSet devices = GPUSet::Range(0, 1);
+  batch.offset.Reshard(GPUDistribution::Overlap(devices, 1));
   DeviceShard shard(0, 0, 0, rows, p);
   shard.InitRowPtrs(batch);
   shard.InitCompressedData(hmat, batch);
