@@ -9,6 +9,7 @@
 
 #include <dmlc/base.h>
 #include <dmlc/data.h>
+#include <gdf/gdf.h>
 #include <cstring>
 #include <memory>
 #include <numeric>
@@ -16,6 +17,8 @@
 #include <vector>
 #include "./base.h"
 #include "../../src/common/span.h"
+
+#include "../../src/common/host_device_vector.h"
 
 #include "../../src/common/host_device_vector.h"
 
@@ -119,6 +122,13 @@ class MetaInfo {
    * \param num Number of elements in the source array.
    */
   void SetInfo(const char* key, const void* dptr, DataType dtype, size_t num);
+  /*!
+   * \brief Set information in the meta info from GDF columns.
+   * \param key The key of the information.
+   * \param cols The GDF columns used to set the info.
+   * \param n_cols The number of GDF columns.
+   */
+  void SetInfoGDF(const char* key, gdf_column** cols, size_t n_cols);
 
  private:
   /*! \brief argsort of labels */

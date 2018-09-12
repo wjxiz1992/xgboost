@@ -8,11 +8,11 @@
 #ifndef XGBOOST_DATA_SIMPLE_CSR_SOURCE_H_
 #define XGBOOST_DATA_SIMPLE_CSR_SOURCE_H_
 
+#include <gdf/gdf.h>
 #include <xgboost/base.h>
 #include <xgboost/data.h>
 #include <vector>
 #include <algorithm>
-
 
 namespace xgboost {
 namespace data {
@@ -36,6 +36,12 @@ class SimpleCSRSource : public DataSource {
   ~SimpleCSRSource() override = default;
   /*! \brief clear the data structure */
   void Clear();
+  /*!
+    \brief initialize the data source from GPU data frame (GDF)
+    \param cols GDF columns
+    \param n_cols number of GDF columns
+   */
+  void InitFromGDF(gdf_column** cols, size_t n_cols);
   /*!
    * \brief copy content of data from src
    * \param src source data iter.

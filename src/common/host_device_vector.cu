@@ -71,6 +71,19 @@ struct HostDeviceVectorImpl {
       perm_d_ = other.perm_d_;
     }
 
+    void Init(HostDeviceVectorImpl<T>* vec, const DeviceShard& other) {
+      if (vec_ == nullptr) { vec_ = vec; }
+      CHECK_EQ(vec, vec_);
+      device_ = other.device_;
+      index_ = other.index_;
+      cached_size_ = other.cached_size_;
+      start_ = other.start_;
+      proper_size_ = other.proper_size_;
+      dh::safe_cuda(cudaSetDevice(device_));
+      data_.resize(other.data_.size());
+      on_d_ = other.on_d_;
+    }
+
     void ScatterFrom(const T* begin) {
       // TODO(canonizer): avoid full copy of host data
       LazySyncDevice(GPUAccess::kWrite);
@@ -151,6 +164,14 @@ struct HostDeviceVectorImpl {
       } else {
         (*cudaSetDeviceHandler)(device_);
       }
+
+    void CopyTo(size_t offset, T* dst, size_t n) {
+      LazySyncDevice(GPUAccess::kRead);
+      CHECK_GE(offset, start_);
+      CHECK_LE(offset + n, start_ + data_.size()); 
+      dh::safe_cuda(cudaSetDevice(device_));      
+      dh::safe_cuda(cudaMemcpy(dst, data_.data().get() + (offset - start_),
+                               n * sizeof(T), cudaMemcpyDefault));
     }
 
     int index_;
@@ -197,6 +218,16 @@ struct HostDeviceVectorImpl {
     } else {
       data_h_ = init;
     }
+  }
+
+  HostDeviceVectorImpl(const HostDeviceVectorImpl<T>& other)
+    : data_h_(other.data_h_), on_h_(other.on_h_), size_d_(other.size_d_), 
+      distribution_(other.distribution_) {
+    std::cerr << "hdvec_impl copy constructor called" << std::endl;
+    shards_.resize(other.shards_.size());
+    dh::ExecuteIndexShards(&shards_, [&](int i, DeviceShard& shard) {
+        shard.Init(this, other.shards_[i]);
+      });
   }
 
   void InitShards() {
@@ -332,6 +363,20 @@ struct HostDeviceVectorImpl {
       dh::ExecuteShards(&shards_, [&](DeviceShard& shard) {
           shard.ScatterFrom(other.begin());
         });
+    }
+  }
+
+  void CopyTo(int device, size_t offset, T* dst, size_t n) {
+    CHECK_LE(offset + n, Size());
+    if (distribution_.IsEmpty()) {
+      // data not present on device, copy from host
+      dh::safe_cuda(cudaSetDevice(device));
+      dh::safe_cuda(cudaMemcpy(dst, data_h_.data() + offset,
+                               n * sizeof(T), cudaMemcpyDefault));
+    } else {
+      // TODO(canonizer): support copies with multiple devices
+      CHECK(distribution_.devices_.Contains(device));
+      shards_[distribution_.devices_.Index(device)].CopyTo(offset, dst, n);
     }
   }
 
@@ -547,6 +592,11 @@ void HostDeviceVector<T>::Copy(const std::vector<T>& other) {
 template <typename T>
 void HostDeviceVector<T>::Copy(std::initializer_list<T> other) {
   impl_->Copy(other);
+}
+
+template <typename T>
+void HostDeviceVector<T>::CopyTo(int device, size_t offset, T* dst, size_t n) const {
+  impl_->CopyTo(device, offset, dst, n);
 }
 
 template <typename T>
