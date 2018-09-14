@@ -9,7 +9,9 @@
 
 #include <dmlc/base.h>
 #include <dmlc/data.h>
+#ifdef XGBOOST_USE_CUDA
 #include <gdf/gdf.h>
+#endif
 #include <cstring>
 #include <memory>
 #include <numeric>
@@ -122,6 +124,8 @@ class MetaInfo {
    * \param num Number of elements in the source array.
    */
   void SetInfo(const char* key, const void* dptr, DataType dtype, size_t num);
+  
+#ifdef XGBOOST_USE_CUDA
   /*!
    * \brief Set information in the meta info from GDF columns.
    * \param key The key of the information.
@@ -129,6 +133,7 @@ class MetaInfo {
    * \param n_cols The number of GDF columns.
    */
   void SetInfoGDF(const char* key, gdf_column** cols, size_t n_cols);
+#endif
 
  private:
   /*! \brief argsort of labels */

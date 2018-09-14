@@ -16,7 +16,9 @@
 #include <stdint.h>
 #endif
 
+#ifdef XGBOOST_USE_CUDA
 #include <gdf/gdf.h>
+#endif
 
 // XGBoost C API will include APIs in Rabit C API
 #include <rabit/c_api.h>
@@ -106,6 +108,8 @@ XGB_DLL const char *XGBGetLastError(void);
  */
 XGB_DLL int XGBRegisterLogCallback(void (*callback)(const char*));
 
+#ifdef XGBOOST_USE_CUDA
+
 /*!
  * \bried create a data matrix from a GPU data frame (GDF)
  * \param cols array of GDF columns
@@ -115,6 +119,8 @@ XGB_DLL int XGBRegisterLogCallback(void (*callback)(const char*));
  */
 XGB_DLL int XGDMatrixCreateFromGDF
 (gdf_column **cols, size_t n_cols, DMatrixHandle *out);
+
+#endif
 
 /*!
  * \brief load a data matrix
@@ -293,6 +299,9 @@ XGB_DLL int XGDMatrixSetFloatInfo(DMatrixHandle handle,
                                   const char *field,
                                   const float *array,
                                   bst_ulong len);
+
+#ifdef XGBOOST_USE_CUDA
+
 /*!
  * \brief set a vector to 
  * \param handle a instance of data matrix
@@ -306,6 +315,8 @@ XGB_DLL int XGDMatrixSetInfoGDF(DMatrixHandle handle,
                                 const char *field,
                                 gdf_column** gdf,
                                 size_t n_cols);
+
+#endif
 
 /*!
  * \brief set uint32 vector to a content in info

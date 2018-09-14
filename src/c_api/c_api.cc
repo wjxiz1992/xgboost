@@ -239,6 +239,8 @@ int XGDMatrixCreateFromDataIter(
   API_END();
 }
 
+#ifdef XGBOOST_USE_CUDA
+
 int XGDMatrixCreateFromGDF
 (gdf_column **cols, size_t n_cols, DMatrixHandle *out) {
   API_BEGIN();
@@ -248,6 +250,8 @@ int XGDMatrixCreateFromGDF
   *out = new std::shared_ptr<DMatrix>(DMatrix::Create(std::move(source)));
   API_END();
 }
+
+#endif
 
 XGB_DLL int XGDMatrixCreateFromCSREx(const size_t* indptr,
                                      const unsigned* indices,
@@ -767,6 +771,8 @@ XGB_DLL int XGDMatrixSetFloatInfo(DMatrixHandle handle,
   API_END();
 }
 
+#ifdef XGBOOST_USE_CUDA
+
 XGB_DLL int XGDMatrixSetInfoGDF(DMatrixHandle handle,
                                 const char *field,
                                 gdf_column **cols,
@@ -777,6 +783,8 @@ XGB_DLL int XGDMatrixSetInfoGDF(DMatrixHandle handle,
     ->get()->Info().SetInfoGDF(field, cols, n_cols);
   API_END();
 }
+
+#endif
 
 XGB_DLL int XGDMatrixSetUIntInfo(DMatrixHandle handle,
                          const char* field,
