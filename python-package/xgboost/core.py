@@ -12,7 +12,7 @@ import sys
 
 from libgdf_cffi import ffi, libgdf
 import numpy as np
-import pygdf.dataframe as gdf
+import cudf.dataframe as gdf
 import scipy.sparse
 
 from .compat import STRING_TYPES, PY3, DataFrame, MultiIndex, py_str, PANDAS_INSTALLED, DataTable
