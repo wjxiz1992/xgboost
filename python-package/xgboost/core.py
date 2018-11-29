@@ -384,7 +384,7 @@ class DMatrix(object):
         if label is not None:
             if isinstance(label, np.ndarray):
                 self.set_label_npy2d(label)
-            elif isinstance(label, gdf.Column):
+            elif isinstance(label, gdf.column.Column):
                 self.set_info_gdf('label', label)
             elif isinstance(label, gdf.DataFrame):
                 self.set_info_gdf('label', label)
@@ -393,7 +393,7 @@ class DMatrix(object):
         if weight is not None:
             if isinstance(weight, np.ndarray):
                 self.set_weight_npy2d(weight)
-            elif isinstance(weight, gdf.Column):
+            elif isinstance(weight, gdf.column.Column):
                 self.set_info_gdf('weight', weight)
             elif isinstance(weight, gdf.DataFrame):
                 self.set_info_gdf('weight', weight)
