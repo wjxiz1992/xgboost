@@ -2,7 +2,7 @@
  * Copyright 2018 by xgboost contributors
  */
 
-#include <gdf/gdf.h>
+#include <cudf.h>
 #include <xgboost/data.h>
 #include <xgboost/logging.h>
 

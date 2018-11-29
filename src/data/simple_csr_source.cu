@@ -2,8 +2,7 @@
  * Copyright 2018 by xgboost contributors
  */
 
-#include <gdf/gdf.h>
-#include <gdf/errorutils.h>
+#include <cudf.h>
 
 #include <thrust/device_ptr.h>
 #include <thrust/device_vector.h>
