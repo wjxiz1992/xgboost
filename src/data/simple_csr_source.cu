@@ -35,7 +35,7 @@ gdf_error run_converter(gdf_column** gdf_data, csr_gdf* csr);
 //--- private CUDA functions / kernels
 __global__ void cuda_create_csr_k
 (void *gdf_data, gdf_valid_type* valid, gdf_dtype dtype, int col, Entry* data,
- gdf_size_type *offsets, size_t n_rows);
+ size_t*offsets, size_t n_rows);
 
 __global__ void determine_valid_rec_count_k
 (gdf_valid_type* valid, size_t n_rows, size_t n_cols, size_t* offset);
@@ -173,7 +173,7 @@ __global__ void cuda_create_csr_k
  *
  */
 __global__ void determine_valid_rec_count_k
-(gdf_valid_type *valid, size_t n_rows, size_t n_cols, gdf_size_type* offset) {
+(gdf_valid_type *valid, size_t n_rows, size_t n_cols, size_t* offset) {
 
   int tid = threadIdx.x + blockDim.x * blockIdx.x;        // get the tread ID which is also the row number
   if (tid >= n_rows)
