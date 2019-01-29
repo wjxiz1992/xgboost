@@ -48,6 +48,16 @@ if(WIN32 AND MINGW)
   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -static-libstdc++")
 endif()
 
+# ABI Compiler flags
+option(CMAKE_CXX11_ABI "Enable the GLIBCXX11 ABI" OFF)
+if(CMAKE_CXX11_ABI)
+  message(STATUS "xgboost: Enabling the GLIBCXX11 ABI")
+else()
+  message(STATUS "xgboost: Disabling the GLIBCXX11 ABI")
+  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -D_GLIBCXX_USE_CXX11_ABI=0")
+  set(CUDA_NVCC_FLAGS "${CMAKE_CUDA_FLAGS} -Xcompiler -D_GLIBCXX_USE_CXX11_ABI=0")
+endif(CMAKE_CXX11_ABI)
+
 # Sanitizer
 if(USE_SANITIZER)
   include(cmake/Sanitizer.cmake)
