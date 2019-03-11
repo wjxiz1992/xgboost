@@ -320,8 +320,6 @@ struct GPUSketcher {
         FindColumnCuts(batch_nrows, icol);
       }
 
-      dh::safe_cuda(cudaDeviceSynchronize());  // NOLINT
-
       // add cuts into sketches
       thrust::copy(cuts_d_.begin(), cuts_d_.end(), cuts_h_.begin());
       for (int icol = 0; icol < num_cols_; ++icol) {
